@@ -1,0 +1,117 @@
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  ingestion:
+    build: ./Data_ingestion
+    container_name: ingestion
+    restart: "no"
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin123
+      MINIO_BUCKET_RAW: raw-weather
+      LATITUDE: "38.2444"
+      LONGITUDE: "21.7344"
+      PAST_HOURS: "24"
+    depends_on:
+      - minio
+
+  flask-api:
+    build: .
+    container_name: flask-api
+    restart: unless-stopped
+    ports:
+    - "5001:5000"
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin123
+
+      HISTORICAL_BUCKET: processed-weather
+      HISTORICAL_OBJECT: history/historical.csv
+      HISTORICAL_FILE: historical.csv
+
+      MODEL_BUCKET: models
+      MODEL_KEY: temperature/model.pkl
+      THRESHOLD_KEY: temperature/threshold.json
+    depends_on:
+      - minio
+
+  rbtmq:
+    build: ./rabbit
+    container_name: rabbit
+    restart: unless-stopped
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: admin
+      RABBITMQ_PASS: admin123
+
+      OBS_QUEUE: weather.observations
+      ALERT_QUEUE: alerts.temp_deviation
+
+      PREDICT_URL: http://flask-api:5000/predict
+    depends_on:
+      - rabbitmq
+      - flask-api
+  rabbit-consumer:
+    build: ./Rabbit
+    container_name: rabbit-consumer
+    restart: unless-stopped
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: admin
+      RABBITMQ_PASS: admin123
+      OBS_QUEUE: weather.observations
+      ALERT_QUEUE: alerts.temp_deviation
+      PREDICT_URL: http://flask-api:5000/predict
+      RABBITMQ_PORT: "5672" 
+    depends_on:
+     - rabbitmq
+     - flask-api
+
+  processor:
+   build:
+    context: .
+    dockerfile: processor/Dockerfile
+   container_name: processor
+   restart: "no"
+   environment:
+    MINIO_ENDPOINT: http://minio:9000
+    MINIO_ACCESS_KEY: minioadmin
+    MINIO_SECRET_KEY: minioadmin123
+    RAW_BUCKET: raw-weather
+    RAW_PREFIX: ""
+    PROCESSED_BUCKET: processed-weather
+    HISTORICAL_KEY: history/historical.csv
+   depends_on:
+    - minio
+
+
+volumes:
+  minio_data:
+  rabbitmq_data:

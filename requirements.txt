@@ -1,0 +1,7 @@
+flask
+pika
+requests
+joblib
+scikit-learn
+boto3
+pandas

@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-02-10T18:30:00",
+  "features": {
+    "year": 2026,
+    "month": 2,
+    "day": 10,
+    "hour": 16,
+    "weekday": 1,
+    "weather_code": 2
+  },
+  "actual_temperature_2m": 30
+}
+
+
+curl -X POST http://localhost:5001/predict \
+  -H "Content-Type: application/json" \
+  -d '{"features":{"hour":16,"weather_code":2}}'
+
+
+ 
+
+
+curl -X POST http://localhost:5001/train 
